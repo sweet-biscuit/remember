@@ -20,7 +20,8 @@ export interface Word {
   exampleTranslation?: string;
   learnedCount: number;
   lastReviewed?: number;
-  isMastered?: boolean; // 新增：是否已掌握
+  isMastered?: boolean;
+  masteryLevel: number; // 0 (陌生) 到 5 (完美掌握)
 }
 
 export type AppView = 'home' | 'flashcards' | 'quiz' | 'library' | 'import';
@@ -39,4 +40,5 @@ export interface QuizQuestion {
 export interface ProjectInfo {
   name: string;
   wordCount: number;
+  averageMastery: number;
 }

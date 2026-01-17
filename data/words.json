@@ -1,0 +1,25 @@
+
+[
+  {
+    "id": "init-1",
+    "term": "Enthusiasm",
+    "phonetic": "/ɪnˈθuːziæzəm/",
+    "partOfSpeech": "n.",
+    "definition": "熱情，熱忱",
+    "project": "內建精選",
+    "example": "She has a great enthusiasm for learning new things.",
+    "masteryLevel": 0,
+    "learnedCount": 0
+  },
+  {
+    "id": "init-2",
+    "term": "Serendipity",
+    "phonetic": "/ˌserənˈdɪpəti/",
+    "partOfSpeech": "n.",
+    "definition": "意外發現的好運",
+    "project": "內建精選",
+    "example": "Finding this book was a complete serendipity.",
+    "masteryLevel": 0,
+    "learnedCount": 0
+  }
+]
