@@ -1,20 +1,25 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# 🎒 背背背 - 部署指南
 
-This contains everything you need to run your app locally.
+這是一個純前端的單字學習 App，您可以輕鬆地將它部署到 GitHub Pages 上，變成一個隨處可用的線上工具。
 
-View your app in AI Studio: https://ai.studio/apps/drive/18KA5zNRN0x0SttBKuRp1KNMBczPA2xGX
+## 🚀 如何部署到 GitHub？
 
-## Run Locally
+1. **建立儲存庫 (Repository)**：
+   - 在 GitHub 上建立一個新的儲存庫，命名為 `beibeibei`。
+   
+2. **上傳檔案**：
+   - 將本專案的所有檔案（`index.html`, `index.tsx`, `types.ts`, `metadata.json` 以及所有資料夾）上傳到該儲存庫。
 
-**Prerequisites:**  Node.js
+3. **開啟 GitHub Pages**：
+   - 進入該儲存庫的 **Settings** -> **Pages**。
+   - 在 **Branch** 部分選擇 `main` 分支，然後點擊 **Save**。
 
+4. **完成！**：
+   - 大約 1-2 分鐘後，GitHub 會給您一個連結（通常是 `https://您的帳號.github.io/beibeibei/`）。點開就能用了！
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 💡 注意事項
+
+- **資料儲存**：本軟體使用 `LocalStorage` 技術，所有的單字資料都儲存在「您目前的瀏覽器」中。
+- **跨裝置使用**：如果您在電腦上建立好了單字，想在手機上背，請利用「單字倉庫 -> 💾 資料中心 -> 匯出」功能下載 JSON 檔，傳到手機後再點擊「還原」即可。
+- **隱私安全**：您的單字資料不會上傳到任何伺服器，GitHub 只是負責存放這個網頁程式。

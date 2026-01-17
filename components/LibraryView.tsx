@@ -165,7 +165,14 @@ const LibraryView: React.FC<LibraryViewProps> = ({ words, onUpdate }) => {
                   </button>
                 </div>
               </div>
-              <button onClick={() => setShowDataCenter(false)} className="w-full mt-10 py-4 font-black text-slate-400 text-sm">關閉</button>
+              
+              <div className="mt-8 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                <p className="text-[10px] text-amber-600 font-bold leading-relaxed">
+                  💡 提醒：資料僅儲存在目前的瀏覽器中。更換裝置或清除瀏覽器快取前，請務必先「匯出單字」進行備份。
+                </p>
+              </div>
+
+              <button onClick={() => setShowDataCenter(false)} className="w-full mt-6 py-4 font-black text-slate-400 text-sm">關閉</button>
             </div>
           </div>
         )}
