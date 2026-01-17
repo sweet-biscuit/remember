@@ -1,0 +1,5 @@
+{
+  "name": "背背背 - 智能單字學習助手",
+  "description": "一個現代化的單字學習工具，支援批次匯入、互動單字卡、隨堂測驗以及語音朗讀功能。",
+  "requestFramePermissions": []
+}
