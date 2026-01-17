@@ -2,7 +2,20 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 
-// --- 全域類型與常數 ---
+// --- 診斷工具: 如果初始化失敗，至少顯示錯誤訊息 ---
+window.onerror = (msg, url, line) => {
+  const root = document.getElementById('root');
+  if (root) {
+    root.innerHTML = `<div style="padding: 20px; color: #ef4444; font-family: sans-serif;">
+      <h3 style="font-weight: bold;">載入失敗 (Runtime Error)</h3>
+      <p style="font-size: 12px; opacity: 0.8;">${msg}</p>
+      <p style="font-size: 10px;">Line: ${line} @ ${url}</p>
+      <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #000; color: #fff; border: none; border-radius: 8px;">重試一次</button>
+    </div>`;
+  }
+};
+
+// --- 全域定義 ---
 interface Word {
   id: string;
   term: string;
@@ -15,16 +28,16 @@ interface Word {
 
 type AppView = 'home' | 'flashcards' | 'quiz' | 'library' | 'import';
 
-const STORAGE_KEY = 'beibeibei_v4_data';
+const STORAGE_KEY = 'beibeibei_v4_data_final';
 
 const defaultWords: Word[] = [
   { id: "d1", term: "Resilience", definition: "韌性、復原力", partOfSpeech: "n.", project: "精選詞彙", masteryLevel: 0, phonetic: "/rɪˈzɪliəns/" },
   { id: "d2", term: "Abundance", definition: "豐富、充足", partOfSpeech: "n.", project: "精選詞彙", masteryLevel: 0, phonetic: "/əˈbʌndəns/" },
   { id: "d3", term: "Serendipity", definition: "意外發現的好運", partOfSpeech: "n.", project: "精選詞彙", masteryLevel: 0, phonetic: "/ˌserənˈdɪpəti/" },
-  { id: "d4", term: "Persistent", definition: "堅持不懈的", partOfSpeech: "adj.", project: "常用形容詞", masteryLevel: 0, phonetic: "/pərˈsɪstənt/" }
+  { id: "d4", term: "Persistent", definition: "堅持不懈的", partOfSpeech: "adj.", project: "精選詞彙", masteryLevel: 0, phonetic: "/pərˈsɪstənt/" }
 ];
 
-// --- 語音功能 ---
+// --- 工具 ---
 const speak = (text: string) => {
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
@@ -35,7 +48,7 @@ const speak = (text: string) => {
   }
 };
 
-// --- 組件: 導覽列 ---
+// --- 組件: Navbar ---
 const Navbar: React.FC<{ currentView: AppView; setView: (v: AppView) => void }> = ({ currentView, setView }) => {
   const items: { id: AppView; label: string; icon: string }[] = [
     { id: 'home', label: '學習', icon: '🏠' },
@@ -57,7 +70,7 @@ const Navbar: React.FC<{ currentView: AppView; setView: (v: AppView) => void }> 
   );
 };
 
-// --- 組件: 單字卡 ---
+// --- 組件: Flashcards ---
 const FlashcardView: React.FC<{ words: Word[]; onFinish: () => void; onUpdate: (w: Word) => void }> = ({ words, onFinish, onUpdate }) => {
   const [idx, setIdx] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -75,18 +88,18 @@ const FlashcardView: React.FC<{ words: Word[]; onFinish: () => void; onUpdate: (
     }, 250);
   };
 
-  if (!current) return <div className="p-10 text-center font-bold text-slate-400">沒有可練習的單字</div>;
+  if (!current) return <div className="p-10 text-center text-slate-400">沒有可練習的單字</div>;
 
   return (
     <div className="flex flex-col items-center gap-8 py-4 animate-in fade-in duration-500">
-      <div className="w-full flex justify-between items-center text-slate-400 px-2 font-black text-[10px] uppercase tracking-widest">
-        <button onClick={onFinish} className="hover:text-slate-800 transition-colors">✕ 結束練習</button>
+      <div className="w-full flex justify-between items-center text-slate-400 px-2 font-black text-[10px] uppercase">
+        <button onClick={onFinish} className="hover:text-slate-800">✕ 離開</button>
         <span className="bg-white px-3 py-1 rounded-full border border-slate-100">{idx + 1} / {words.length}</span>
       </div>
-      <div className="w-full h-[450px] perspective-1000 cursor-pointer" onClick={() => setIsFlipped(!isFlipped)}>
+      <div className="w-full h-[450px] perspective-1000" onClick={() => setIsFlipped(!isFlipped)}>
         <div className={`relative w-full h-full transition-transform duration-700 preserve-3d shadow-2xl rounded-[40px] ${isFlipped ? 'rotate-y-180' : ''}`}>
           <div className="absolute inset-0 bg-white rounded-[40px] flex flex-col items-center justify-center p-8 backface-hidden border border-slate-50">
-            <h2 className="text-5xl font-black text-slate-800 text-center mb-4 tracking-tighter w-full break-words px-4">{current.term}</h2>
+            <h2 className="text-5xl font-black text-slate-800 text-center break-words w-full px-4 tracking-tighter">{current.term}</h2>
             {current.phonetic && <p className="text-indigo-400 font-mono text-lg bg-indigo-50 px-4 py-1 rounded-xl">{current.phonetic}</p>}
             <p className="mt-16 text-slate-200 text-[10px] font-black uppercase tracking-[0.4em]">點擊翻面</p>
           </div>
@@ -104,7 +117,7 @@ const FlashcardView: React.FC<{ words: Word[]; onFinish: () => void; onUpdate: (
   );
 };
 
-// --- 組件: 小測驗 ---
+// --- 組件: Quiz ---
 const QuizView: React.FC<{ targetWords: Word[]; allWords: Word[]; onFinish: () => void; onUpdate: (w: Word) => void }> = ({ targetWords, allWords, onFinish, onUpdate }) => {
   const [questions, setQuestions] = useState<any[]>([]);
   const [idx, setIdx] = useState(0);
@@ -125,7 +138,7 @@ const QuizView: React.FC<{ targetWords: Word[]; allWords: Word[]; onFinish: () =
     setSelected(i);
     const correct = i === questions[idx].correctIndex;
     const word = questions[idx].word;
-    const nextLvl = correct ? Math.min(5, (word.masteryLevel || 0) + 1) : Math.max(0, (word.masteryLevel || 0) - 1);
+    const nextLvl = correct ? Math.min(5, word.masteryLevel + 1) : Math.max(0, word.masteryLevel - 1);
     onUpdate({ ...word, masteryLevel: nextLvl });
   };
 
@@ -168,7 +181,7 @@ const QuizView: React.FC<{ targetWords: Word[]; allWords: Word[]; onFinish: () =
   );
 };
 
-// --- 主應用 ---
+// --- App 主程式 ---
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('home');
   const [words, setWords] = useState<Word[]>([]);
@@ -176,67 +189,66 @@ const App: React.FC = () => {
   const [importText, setImportText] = useState('');
 
   useEffect(() => {
-    const initData = async () => {
+    const init = async () => {
       try {
         const local = localStorage.getItem(STORAGE_KEY);
         if (local) {
           setWords(JSON.parse(local));
         } else {
-          // 嘗試抓取 JSON，失敗則用預設值
-          const res = await fetch('./data/words.json').catch(() => null);
+          // 嘗試載入預設資料，失敗則用常數
+          const res = await fetch('data/words.json').catch(() => null);
           if (res && res.ok) {
-            const data = await res.json();
-            setWords(data);
+            setWords(await res.json());
           } else {
             setWords(defaultWords);
           }
         }
       } catch (e) {
+        console.error(e);
         setWords(defaultWords);
       } finally {
         setLoading(false);
       }
     };
-    initData();
+    init();
   }, []);
 
-  const saveAndSet = (newWords: Word[]) => {
+  const save = (newWords: Word[]) => {
     setWords(newWords);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newWords));
   };
 
-  const handleUpdate = (updated: Word) => {
-    const newWords = words.map(w => w.id === updated.id ? updated : w);
-    saveAndSet(newWords);
+  const updateWord = (updated: Word) => {
+    save(words.map(w => w.id === updated.id ? updated : w));
   };
 
   if (loading) return null;
 
-  const avgMastery = words.length ? (words.reduce((a, w) => a + (w.masteryLevel || 0), 0) / (words.length * 5)) : 0;
+  const avgMastery = words.length ? (words.reduce((a, w) => a + w.masteryLevel, 0) / (words.length * 5)) : 0;
 
-  const renderContent = () => {
+  const renderView = () => {
     switch (view) {
-      case 'flashcards': return <FlashcardView words={words} onFinish={() => setView('home')} onUpdate={handleUpdate} />;
-      case 'quiz': return <QuizView targetWords={words} allWords={words} onFinish={() => setView('home')} onUpdate={handleUpdate} />;
+      case 'flashcards': return <FlashcardView words={words} onFinish={() => setView('home')} onUpdate={updateWord} />;
+      case 'quiz': return <QuizView targetWords={words} allWords={words} onFinish={() => setView('home')} onUpdate={updateWord} />;
       case 'library': return (
-        <div className="space-y-6 pb-24 animate-in fade-in duration-300">
+        <div className="space-y-6 pb-24 animate-in fade-in">
           <header className="flex justify-between items-center px-2">
             <h2 className="text-3xl font-black text-slate-800 tracking-tighter">所有單字</h2>
-            <span className="text-[10px] font-black text-slate-400 bg-white px-3 py-1 rounded-full border border-slate-100 uppercase tracking-widest">{words.length} 字</span>
+            <span className="text-[10px] font-black text-slate-400 bg-white px-3 py-1 rounded-full border border-slate-100">{words.length} 字</span>
           </header>
-          <div className="grid gap-3 px-2">
+          <div className="grid gap-3">
             {words.map(w => (
-              <div key={w.id} className="bg-white p-5 rounded-[28px] shadow-sm flex justify-between items-center border border-slate-50 group">
-                <div className="flex-1">
+              <div key={w.id} className="bg-white p-5 rounded-[28px] shadow-sm flex justify-between items-center border border-slate-50">
+                <div>
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-black text-slate-800">{w.term}</span>
-                    <button onClick={() => speak(w.term)} className="text-slate-200 group-hover:text-indigo-400 transition-colors">🔊</button>
+                    <button onClick={() => speak(w.term)} className="text-slate-200 hover:text-indigo-400">🔊</button>
                   </div>
-                  <p className="text-xs text-slate-400 font-medium truncate">{w.definition}</p>
+                  <p className="text-xs text-slate-400 truncate">{w.definition}</p>
                 </div>
                 <div className="flex gap-1">
                   {[...Array(5)].map((_, i) => (
-                    <div key={i} className={`w-1.5 h-1.5 rounded-full ${i < (w.masteryLevel || 0) ? 'bg-indigo-500' : 'bg-slate-100'}`} />
+                    <div key={i} className={`w-1.5 h-1.5 rounded-full ${i < w.masteryLevel ? 'bg-indigo-500' : 'bg-slate-100'}`} />
                   ))}
                 </div>
               </div>
@@ -245,19 +257,19 @@ const App: React.FC = () => {
         </div>
       );
       case 'import': return (
-        <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="space-y-6 animate-in fade-in">
           <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl">
-            <h2 className="text-2xl font-black mb-1 tracking-tight">匯入單字集</h2>
-            <p className="text-slate-400 text-xs mb-8">格式：單字 [空格] 翻譯（每行一組）</p>
+            <h2 className="text-2xl font-black mb-1">手動匯入</h2>
+            <p className="text-slate-400 text-xs mb-8">格式：單字 [空格] 翻譯（每行一個）</p>
             <textarea className="w-full h-48 p-6 rounded-3xl bg-white/10 border-none text-white font-mono text-sm mb-6 focus:ring-2 ring-indigo-500 outline-none" placeholder="apple 蘋果&#10;banana 香蕉" value={importText} onChange={e => setImportText(e.target.value)} />
             <button onClick={() => {
               const lines = importText.split('\n').filter(l => l.trim());
-              const newItems = lines.map(l => {
-                const parts = l.trim().split(/\s+/);
-                return { id: Math.random().toString(36).substr(2, 9), term: parts[0], definition: parts.slice(1).join(' ') || '未定義', partOfSpeech: 'n.', project: '我的匯入', masteryLevel: 0 };
+              const newWords: Word[] = lines.map(l => {
+                const p = l.trim().split(/\s+/);
+                return { id: Math.random().toString(36).substr(2, 9), term: p[0], definition: p.slice(1).join(' ') || '未定義', partOfSpeech: 'n.', project: '我的匯入', masteryLevel: 0 };
               });
-              if (newItems.length) {
-                saveAndSet([...words, ...newItems]);
+              if (newWords.length) {
+                save([...words, ...newWords]);
                 setImportText('');
                 setView('home');
               }
@@ -266,11 +278,11 @@ const App: React.FC = () => {
         </div>
       );
       default: return (
-        <div className="space-y-8 pb-24 animate-in fade-in duration-300">
+        <div className="space-y-8 pb-24 animate-in fade-in">
           <header className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[48px] p-10 text-white shadow-2xl relative overflow-hidden">
             <div className="relative z-10">
-              <h1 className="text-3xl font-black mb-2 leading-tight tracking-tight">準備好提升<br/>詞彙量了嗎？</h1>
-              <p className="text-indigo-200 text-xs font-medium mb-8">掌握進度：{(avgMastery * 100).toFixed(0)}%</p>
+              <h1 className="text-3xl font-black mb-2 leading-tight">今天<br/>要挑戰嗎？</h1>
+              <p className="text-indigo-200 text-xs font-medium mb-8">目前總進度：{(avgMastery * 100).toFixed(0)}%</p>
               <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
                 <div className="h-full bg-white transition-all duration-1000 ease-out" style={{ width: `${avgMastery * 100}%` }} />
               </div>
@@ -278,18 +290,18 @@ const App: React.FC = () => {
             <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-3xl" />
           </header>
           <div className="grid gap-4 px-2">
-            <button onClick={() => setView('flashcards')} className="flex items-center gap-6 bg-white p-8 rounded-[40px] shadow-sm border border-slate-50 active:scale-95 transition-all text-left w-full">
-              <div className="w-16 h-16 bg-amber-50 rounded-[24px] flex items-center justify-center text-3xl shadow-inner">🗂️</div>
+            <button onClick={() => setView('flashcards')} className="flex items-center gap-6 bg-white p-8 rounded-[40px] shadow-sm border border-slate-50 active:scale-95 transition-all text-left">
+              <div className="w-16 h-16 bg-amber-50 rounded-[24px] flex items-center justify-center text-3xl">🗂️</div>
               <div>
-                <h4 className="font-black text-slate-800 text-lg tracking-tight">單字卡練習</h4>
-                <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">Flashcards</p>
+                <h4 className="font-black text-slate-800 text-lg">單字卡練習</h4>
+                <p className="text-slate-400 text-xs font-medium">Flashcards</p>
               </div>
             </button>
-            <button onClick={() => setView('quiz')} className="flex items-center gap-6 bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 active:scale-95 transition-all text-left w-full">
-              <div className="w-16 h-16 bg-emerald-50 rounded-[24px] flex items-center justify-center text-3xl shadow-inner">🎯</div>
+            <button onClick={() => setView('quiz')} className="flex items-center gap-6 bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 active:scale-95 transition-all text-left">
+              <div className="w-16 h-16 bg-emerald-50 rounded-[24px] flex items-center justify-center text-3xl">🎯</div>
               <div>
-                <h4 className="font-black text-slate-800 text-lg tracking-tight">隨堂小測驗</h4>
-                <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">Quick Quiz</p>
+                <h4 className="font-black text-slate-800 text-lg">隨堂小測驗</h4>
+                <p className="text-slate-400 text-xs font-medium">Quick Quiz</p>
               </div>
             </button>
           </div>
@@ -300,7 +312,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 max-w-md mx-auto p-4 pt-8 relative pb-20">
-      {renderContent()}
+      {renderView()}
       <Navbar currentView={view} setView={setView} />
     </div>
   );
