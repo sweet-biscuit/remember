@@ -1,84 +1,46 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 
-// --- Types (整合至此) ---
-export interface Word {
+// --- Types ---
+interface Word {
   id: string;
   term: string;
+  definition: string;
   phonetic?: string;
   partOfSpeech: string;
-  definition: string;
   project: string;
-  example?: string;
   masteryLevel: number;
-  learnedCount: number;
-  lastReviewed?: number;
 }
 
-export type AppView = 'home' | 'flashcards' | 'quiz' | 'library' | 'import';
+type AppView = 'home' | 'flashcards' | 'quiz' | 'library' | 'import';
 
-export interface QuizQuestion {
-  word: Word;
-  options: { definition: string; partOfSpeech: string }[];
-  correctIndex: number;
-}
-
-// --- Services ---
+// --- Constants & Services ---
 const STORAGE_KEY = 'beibeibei_v2_data';
 
 const defaultWords: Word[] = [
-  { id: "d1", term: "Resilience", definition: "韌性、復原力", partOfSpeech: "n.", project: "核心詞彙", masteryLevel: 0, learnedCount: 0, phonetic: "/rɪˈzɪliəns/" },
-  { id: "d2", term: "Abundance", definition: "豐富、充足", partOfSpeech: "n.", project: "核心詞彙", masteryLevel: 0, learnedCount: 0, phonetic: "/əˈbʌndəns/" },
-  { id: "d3", term: "Cultivate", definition: "培養、耕作", partOfSpeech: "v.", project: "核心詞彙", masteryLevel: 0, learnedCount: 0, phonetic: "/ˈkʌltɪveɪt/" }
+  { id: "d1", term: "Resilience", definition: "韌性、復原力", partOfSpeech: "n.", project: "精選詞彙", masteryLevel: 0, phonetic: "/rɪˈzɪliəns/" },
+  { id: "d2", term: "Abundance", definition: "豐富、充足", partOfSpeech: "n.", project: "精選詞彙", masteryLevel: 0, phonetic: "/əˈbʌndəns/" },
+  { id: "d3", term: "Cultivate", definition: "培養、耕作", partOfSpeech: "v.", project: "精選詞彙", masteryLevel: 0, phonetic: "/ˈkʌltɪveɪt/" }
 ];
-
-const apiService = {
-  getWords: async (): Promise<Word[]> => {
-    const local = localStorage.getItem(STORAGE_KEY);
-    if (local) return JSON.parse(local);
-    
-    try {
-      // 嘗試抓取外部 JSON，若失敗則回傳預設值
-      const res = await fetch('./data/words.json').catch(() => null);
-      if (res && res.ok) {
-        const data = await res.json();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        return data;
-      }
-    } catch (e) {
-      console.warn("Fetch failed, using defaults");
-    }
-    return defaultWords;
-  },
-  saveWords: (words: Word[]) => localStorage.setItem(STORAGE_KEY, JSON.stringify(words)),
-  updateWord: async (updated: Word) => {
-    const words = await apiService.getWords();
-    const idx = words.findIndex(w => w.id === updated.id);
-    if (idx !== -1) {
-      words[idx] = { ...updated, lastReviewed: Date.now() };
-      apiService.saveWords(words);
-    }
-  }
-};
 
 const speak = (text: string) => {
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US';
-    u.rate = 0.9;
+    u.rate = 0.85;
     window.speechSynthesis.speak(u);
   }
 };
 
-// --- Components ---
+// --- Sub-Components ---
 
 const Navbar: React.FC<{ currentView: AppView; setView: (v: AppView) => void }> = ({ currentView, setView }) => {
   const items: { id: AppView; label: string; icon: string }[] = [
     { id: 'home', label: '學習', icon: '🏠' },
-    { id: 'library', label: '清單', icon: '📂' },
-    { id: 'import', label: '新增', icon: '📥' },
+    { id: 'library', label: '庫存', icon: '📂' },
+    { id: 'import', label: '匯入', icon: '📥' },
   ];
   return (
     <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-sm bg-white/90 backdrop-blur-xl border border-white shadow-2xl rounded-[32px] px-4 py-2 flex justify-around items-center z-50">
@@ -87,7 +49,7 @@ const Navbar: React.FC<{ currentView: AppView; setView: (v: AppView) => void }> 
         return (
           <button key={item.id} onClick={() => setView(item.id)} className={`flex flex-col items-center p-2 rounded-2xl transition-all ${active ? 'text-indigo-600 scale-110' : 'text-slate-300'}`}>
             <span className="text-2xl">{item.icon}</span>
-            <span className="text-[10px] font-bold mt-1">{item.label}</span>
+            <span className={`text-[10px] font-bold mt-1 ${active ? 'opacity-100' : 'opacity-0 h-0'}`}>{item.label}</span>
           </button>
         );
       })}
@@ -95,16 +57,16 @@ const Navbar: React.FC<{ currentView: AppView; setView: (v: AppView) => void }> 
   );
 };
 
-const FlashcardView: React.FC<{ words: Word[]; onFinish: () => void }> = ({ words, onFinish }) => {
+const FlashcardView: React.FC<{ words: Word[]; onFinish: () => void; onUpdate: (w: Word) => void }> = ({ words, onFinish, onUpdate }) => {
   const [idx, setIdx] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const current = words[idx];
 
-  useEffect(() => { if (current) speak(current.term); }, [idx]);
+  useEffect(() => { if (current) speak(current.term); }, [idx, current]);
 
-  const handleLevel = async (delta: number) => {
+  const handleLevel = (delta: number) => {
     const nextLevel = Math.max(0, Math.min(5, (current.masteryLevel || 0) + delta));
-    await apiService.updateWord({ ...current, masteryLevel: nextLevel });
+    onUpdate({ ...current, masteryLevel: nextLevel });
     setIsFlipped(false);
     setTimeout(() => {
       if (idx < words.length - 1) setIdx(idx + 1);
@@ -117,15 +79,15 @@ const FlashcardView: React.FC<{ words: Word[]; onFinish: () => void }> = ({ word
   return (
     <div className="flex flex-col items-center gap-8 py-4 animate-in fade-in duration-500">
       <div className="w-full flex justify-between items-center text-slate-400 px-2 font-black text-[10px] uppercase tracking-widest">
-        <button onClick={onFinish}>✕ 結束</button>
+        <button onClick={onFinish}>✕ 結束練習</button>
         <span>{idx + 1} / {words.length}</span>
       </div>
       <div className="w-full h-[450px] perspective-1000 cursor-pointer" onClick={() => setIsFlipped(!isFlipped)}>
         <div className={`relative w-full h-full transition-transform duration-700 preserve-3d shadow-2xl rounded-[40px] ${isFlipped ? 'rotate-y-180' : ''}`}>
           <div className="absolute inset-0 bg-white rounded-[40px] flex flex-col items-center justify-center p-8 backface-hidden border border-slate-50">
-            <h2 className="text-5xl font-black text-slate-800 text-center mb-4">{current.term}</h2>
-            <p className="text-indigo-400 font-mono">{current.phonetic}</p>
-            <p className="mt-12 text-slate-200 text-[10px] font-black uppercase tracking-widest">點擊翻面</p>
+            <h2 className="text-5xl font-black text-slate-800 text-center mb-4 tracking-tighter">{current.term}</h2>
+            <p className="text-indigo-400 font-mono text-lg">{current.phonetic}</p>
+            <p className="mt-16 text-slate-200 text-[10px] font-black uppercase tracking-[0.4em]">點擊翻面</p>
           </div>
           <div className="absolute inset-0 bg-indigo-600 rounded-[40px] flex flex-col items-center justify-center p-8 backface-hidden rotate-y-180 text-white text-center">
             <span className="bg-white/20 px-3 py-1 rounded-lg text-[10px] font-black mb-4 uppercase">{current.partOfSpeech}</span>
@@ -141,8 +103,8 @@ const FlashcardView: React.FC<{ words: Word[]; onFinish: () => void }> = ({ word
   );
 };
 
-const QuizView: React.FC<{ targetWords: Word[]; allWords: Word[]; onFinish: () => void }> = ({ targetWords, allWords, onFinish }) => {
-  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+const QuizView: React.FC<{ targetWords: Word[]; allWords: Word[]; onFinish: () => void; onUpdate: (w: Word) => void }> = ({ targetWords, allWords, onFinish, onUpdate }) => {
+  const [questions, setQuestions] = useState<any[]>([]);
   const [idx, setIdx] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
 
@@ -150,19 +112,19 @@ const QuizView: React.FC<{ targetWords: Word[]; allWords: Word[]; onFinish: () =
     const shuffled = [...targetWords].sort(() => Math.random() - 0.5).slice(0, 10);
     const qData = shuffled.map(word => {
       const others = allWords.filter(w => w.definition !== word.definition).sort(() => Math.random() - 0.5).slice(0, 3);
-      const options = [...others, word].sort(() => Math.random() - 0.5).map(o => ({ definition: o.definition, partOfSpeech: o.partOfSpeech }));
-      return { word, options, correctIndex: options.findIndex(o => o.definition === word.definition) };
+      const options = [...others, word].sort(() => Math.random() - 0.5);
+      return { word, options, correctIndex: options.findIndex(o => o.id === word.id) };
     });
     setQuestions(qData);
   }, [targetWords, allWords]);
 
-  const handleAnswer = async (i: number) => {
+  const handleAnswer = (i: number) => {
     if (selected !== null) return;
     setSelected(i);
     const correct = i === questions[idx].correctIndex;
     const word = questions[idx].word;
     const nextLvl = correct ? Math.min(5, (word.masteryLevel || 0) + 1) : Math.max(0, (word.masteryLevel || 0) - 1);
-    await apiService.updateWord({ ...word, masteryLevel: nextLvl });
+    onUpdate({ ...word, masteryLevel: nextLvl });
   };
 
   if (!questions[idx]) return null;
@@ -171,7 +133,7 @@ const QuizView: React.FC<{ targetWords: Word[]; allWords: Word[]; onFinish: () =
   return (
     <div className="space-y-8 py-4 animate-in fade-in duration-500">
       <div className="flex justify-between items-center text-slate-400 font-black text-[10px]">
-        <button onClick={onFinish}>✕ 結束</button>
+        <button onClick={onFinish}>✕ 離開測驗</button>
         <div className="flex-1 h-1 bg-slate-100 rounded-full mx-6 overflow-hidden">
           <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${((idx + 1) / questions.length) * 100}%` }} />
         </div>
@@ -182,10 +144,10 @@ const QuizView: React.FC<{ targetWords: Word[]; allWords: Word[]; onFinish: () =
         <h2 className="text-4xl font-black text-slate-800 break-words">{q.word.term}</h2>
       </div>
       <div className="grid gap-3">
-        {q.options.map((opt, i) => {
+        {q.options.map((opt: Word, i: number) => {
           let style = "w-full text-left p-6 rounded-[28px] border-2 font-bold text-sm transition-all ";
           if (selected === null) style += "bg-white border-slate-50 hover:border-indigo-100";
-          else if (i === q.correctIndex) style += "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm shadow-emerald-100";
+          else if (i === q.correctIndex) style += "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm";
           else if (i === selected) style += "bg-rose-50 border-rose-500 text-rose-700";
           else style += "bg-white border-slate-50 opacity-40";
           return (
@@ -197,12 +159,14 @@ const QuizView: React.FC<{ targetWords: Word[]; allWords: Word[]; onFinish: () =
       </div>
       {selected !== null && (
         <button onClick={() => { if (idx < questions.length - 1) { setIdx(idx + 1); setSelected(null); } else onFinish(); }} className="w-full py-5 bg-slate-900 text-white rounded-[28px] font-black">
-          {idx < questions.length - 1 ? '下一題' : '完成'}
+          {idx < questions.length - 1 ? '下一題' : '查看結果'}
         </button>
       )}
     </div>
   );
 };
+
+// --- Main App ---
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('home');
@@ -211,34 +175,58 @@ const App: React.FC = () => {
   const [importText, setImportText] = useState('');
 
   useEffect(() => {
-    apiService.getWords().then(data => {
-      setWords(data);
+    const init = async () => {
+      const local = localStorage.getItem(STORAGE_KEY);
+      if (local) {
+        setWords(JSON.parse(local));
+      } else {
+        // 嘗試抓取外部資料，失敗則用預設值
+        try {
+          const res = await fetch('./data/words.json');
+          if (res.ok) {
+            const data = await res.json();
+            setWords(data);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          } else {
+            setWords(defaultWords);
+          }
+        } catch (e) {
+          setWords(defaultWords);
+        }
+      }
       setLoading(false);
-    });
+    };
+    init();
   }, []);
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  const saveAndSetWords = (newWords: Word[]) => {
+    setWords(newWords);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newWords));
+  };
+
+  const handleUpdateWord = (updated: Word) => {
+    const newWords = words.map(w => w.id === updated.id ? updated : w);
+    saveAndSetWords(newWords);
+  };
+
+  if (loading) return null;
 
   const avgMastery = words.length ? (words.reduce((a, w) => a + (w.masteryLevel || 0), 0) / (words.length * 5)) : 0;
 
   const renderContent = () => {
     switch (view) {
-      case 'flashcards': return <FlashcardView words={words} onFinish={() => setView('home')} />;
-      case 'quiz': return <QuizView targetWords={words} allWords={words} onFinish={() => setView('home')} />;
+      case 'flashcards': return <FlashcardView words={words} onFinish={() => setView('home')} onUpdate={handleUpdateWord} />;
+      case 'quiz': return <QuizView targetWords={words} allWords={words} onFinish={() => setView('home')} onUpdate={handleUpdateWord} />;
       case 'library': return (
         <div className="space-y-6 pb-24 animate-in fade-in duration-300">
-          <h2 className="text-3xl font-black text-slate-800">單字清單</h2>
+          <h2 className="text-3xl font-black text-slate-800">所有單字</h2>
           <div className="grid gap-3">
             {words.map(w => (
-              <div key={w.id} className="bg-white p-5 rounded-[28px] shadow-sm flex justify-between items-center group">
+              <div key={w.id} className="bg-white p-5 rounded-[28px] shadow-sm flex justify-between items-center group border border-slate-50">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-black text-slate-800">{w.term}</span>
-                    <button onClick={() => speak(w.term)} className="text-slate-200 group-hover:text-indigo-400">🔊</button>
+                    <button onClick={() => speak(w.term)} className="text-slate-200 group-hover:text-indigo-400 transition-colors">🔊</button>
                   </div>
                   <p className="text-xs text-slate-400 font-medium">{w.definition}</p>
                 </div>
@@ -255,51 +243,49 @@ const App: React.FC = () => {
       case 'import': return (
         <div className="space-y-6 animate-in fade-in duration-300">
           <div className="bg-slate-900 p-10 rounded-[40px] text-white shadow-2xl">
-            <h2 className="text-2xl font-black mb-1">匯入新單字</h2>
+            <h2 className="text-2xl font-black mb-1">匯入單字</h2>
             <p className="text-slate-400 text-xs mb-8">格式：單字 翻譯（每行一個）</p>
-            <textarea className="w-full h-48 p-6 rounded-3xl bg-white/10 border-none text-white font-mono text-sm mb-6" placeholder="apple 蘋果&#10;banana 香蕉" value={importText} onChange={e => setImportText(e.target.value)} />
-            <button onClick={async () => {
+            <textarea className="w-full h-48 p-6 rounded-3xl bg-white/10 border-none text-white font-mono text-sm mb-6 focus:ring-2 ring-indigo-500 outline-none" placeholder="apple 蘋果&#10;banana 香蕉" value={importText} onChange={e => setImportText(e.target.value)} />
+            <button onClick={() => {
               const lines = importText.split('\n').filter(l => l.trim());
               const newWords: Word[] = lines.map(l => {
-                const parts = l.split(/\s+/);
-                return { id: Math.random().toString(36).substr(2, 9), term: parts[0], definition: parts.slice(1).join(' '), partOfSpeech: 'n.', project: '自定義', masteryLevel: 0, learnedCount: 0 };
+                const parts = l.trim().split(/\s+/);
+                return { id: Math.random().toString(36).substr(2, 9), term: parts[0], definition: parts.slice(1).join(' ') || '未定義', partOfSpeech: 'n.', project: '我的匯入', masteryLevel: 0 };
               });
               if (newWords.length) {
-                const all = [...words, ...newWords];
-                apiService.saveWords(all);
-                setWords(all);
+                saveAndSetWords([...words, ...newWords]);
                 setImportText('');
-                alert(`成功新增 ${newWords.length} 個單字`);
                 setView('home');
               }
-            }} className="w-full py-5 bg-indigo-600 rounded-2xl font-black shadow-xl">開始匯入</button>
+            }} className="w-full py-5 bg-indigo-600 rounded-2xl font-black shadow-xl active:scale-95 transition-all">確定匯入</button>
           </div>
         </div>
       );
       default: return (
         <div className="space-y-8 pb-24 animate-in fade-in duration-300">
-          <header className="bg-indigo-600 rounded-[48px] p-10 text-white shadow-2xl relative overflow-hidden">
+          <header className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[48px] p-10 text-white shadow-2xl relative overflow-hidden">
             <div className="relative z-10">
-              <h1 className="text-2xl font-black mb-2">準備好學習了嗎？</h1>
-              <p className="text-indigo-200 text-xs font-medium mb-8">目前掌握進度：{(avgMastery * 100).toFixed(0)}%</p>
+              <h1 className="text-2xl font-black mb-2 leading-tight">準備好提升<br/>你的詞彙量了嗎？</h1>
+              <p className="text-indigo-200 text-xs font-medium mb-8">目前的總進度：{(avgMastery * 100).toFixed(0)}%</p>
               <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
                 <div className="h-full bg-white transition-all duration-1000" style={{ width: `${avgMastery * 100}%` }} />
               </div>
             </div>
+            <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
           </header>
           <div className="grid gap-4">
             <button onClick={() => setView('flashcards')} className="flex items-center gap-6 bg-white p-8 rounded-[40px] shadow-sm border border-slate-50 active:scale-95 transition-all">
               <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center text-2xl">🗂️</div>
               <div className="text-left">
-                <h4 className="font-black text-slate-800">單字卡練習</h4>
-                <p className="text-slate-400 text-xs font-medium">翻轉式記憶</p>
+                <h4 className="font-black text-slate-800">單字卡模式</h4>
+                <p className="text-slate-400 text-xs font-medium">翻轉聯想記憶</p>
               </div>
             </button>
             <button onClick={() => setView('quiz')} className="flex items-center gap-6 bg-white p-8 rounded-[40px] shadow-sm border border-slate-50 active:scale-95 transition-all">
               <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-2xl">🎯</div>
               <div className="text-left">
-                <h4 className="font-black text-slate-800">挑戰小測驗</h4>
-                <p className="text-slate-400 text-xs font-medium">檢驗學習成效</p>
+                <h4 className="font-black text-slate-800">隨堂小測驗</h4>
+                <p className="text-slate-400 text-xs font-medium">檢測學習效果</p>
               </div>
             </button>
           </div>
@@ -309,12 +295,14 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 max-w-md mx-auto p-4 pt-10">
+    <div className="min-h-screen bg-slate-50 max-w-md mx-auto p-4 pt-10 relative">
       {renderContent()}
       <Navbar currentView={view} setView={setView} />
     </div>
   );
 };
 
-const root = createRoot(document.getElementById('root')!);
-root.render(<App />);
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  createRoot(rootElement).render(<App />);
+}

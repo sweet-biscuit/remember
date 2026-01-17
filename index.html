@@ -23,24 +23,26 @@
         button:active { transform: scale(0.96); }
     </style>
     <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@^19.2.3",
-        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-        "react/": "https://esm.sh/react@^19.2.3/",
-        "@google/genai": "https://esm.sh/@google/genai"
-      }
-    }
-    </script>
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
+  }
+}
+</script>
 </head>
 <body>
     <div id="root">
-        <!-- 備援訊息：如果 JS 沒跑起來會顯示 -->
         <div class="min-h-screen flex items-center justify-center text-slate-400">
-            <p>正在初始化學習環境...</p>
+            <div class="flex flex-col items-center gap-4">
+                <div class="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                <p class="text-xs font-black uppercase tracking-widest">初始化學習環境...</p>
+            </div>
         </div>
     </div>
-    <!-- 必須明確引入 index.tsx -->
     <script type="module" src="./index.tsx"></script>
 </body>
 </html>
